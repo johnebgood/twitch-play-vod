@@ -1,0 +1,216 @@
+<!doctype html>
+<html>
+
+<head>
+    <title>Security Live TTS Configuration</title>
+    <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/@forevolve/bootstrap-dark@1.0.0/dist/css/bootstrap-dark.min.css" />
+    <style type="text/css">
+        #login,
+        #loggedin {
+            display: none;
+        }
+
+        body {
+            margin: 0;
+        }
+
+        .wrapper {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        #vodembed {
+            aspect-ratio: 16 / 9;
+        }
+    </style>
+</head>
+
+<body class="bootstrap-dark">
+    <center>
+        <div>
+            <h1>Security Live VOD Seeker</h1>
+            Generate a VOD link for something that happened at a specific date/time. <br>
+            (Initial version, tested on Chrome and Edge. On Firefox dates need to be entered manually)
+            <div id="login" style="margin-top:10px"></div>
+        </div>
+        <div id="loggedin">
+            <div class="wrapper">
+                <div id="header">
+                    <input type="text" id="channel" value="" placeholder="channel">
+                    <input type="datetime-local" id="datetime" class="timepicker" step="1">
+                    <a href="#" class="btn btn-primary" onclick="playVod()">Play VOD</a>
+                    <br>
+                    <div id="vodlink"></div><br>
+
+                </div>
+                <div id="vodembed"></div>
+            </div>
+        </div>
+    </center>
+
+    <script src="https://code.jquery.com/jquery-1.10.1.min.js"></script>
+    <script src="https://player.twitch.tv/js/embed/v1.js"></script>
+
+    <script>
+        var global_access_token = '';
+        var hostname = window.location.hostname;
+
+        async function playVod() {
+            var channel = document.getElementById("channel").value;
+
+            if (!channel) {
+                channel = window.prompt("Enter Channel");
+                document.getElementById("channel").value = channel;
+            }
+            var twitch_id = 0;
+            var videos = [];
+
+            await $.ajax({
+                url: 'https://api.twitch.tv/helix/users?login=' + channel,
+                type: 'GET',
+                headers: {
+                    'client-id': 'iluz511aidmg5esdxunretfkkw8nos',
+                    'Authorization': 'Bearer ' + global_access_token
+                },
+                success: function (response) {
+                    console.log("user lookup success:", response);
+                    twitch_id = response.data[0].id;
+                },
+                error: function (err) {
+                    console.log("user lookup error:", err)
+                }
+            });
+
+            await $.ajax({
+                url: 'https://api.twitch.tv/helix/videos?user_id=' + twitch_id,
+                type: 'GET',
+                headers: {
+                    'client-id': 'iluz511aidmg5esdxunretfkkw8nos',
+                    'Authorization': 'Bearer ' + global_access_token
+                },
+                success: function (response) {
+                    console.log("videos lookup success:", response);
+                    videos = response.data;
+                },
+                error: function (err) {
+                    console.log("videos lookup error:", err)
+                }
+            });
+
+            // Get vods for a particular twitch_id
+            //var url = "https://api.twitch.tv/helix/videos?user_id=473060639";
+
+            var datetimePick = document.getElementById("datetime").value;
+            var picked_date = new Date(datetimePick);
+            var picked_epoch = picked_date.getTime() / 1000;
+            console.log("picked_epoch:", picked_epoch);
+
+            for (const video of videos) {
+                var created_date = new Date(video.created_at);
+                var created_epoch = created_date.getTime() / 1000;
+                console.log("created_epoch:", created_epoch);
+
+                var dhour = video.duration.match(/(\d+)h/);
+                var dmin = video.duration.match(/(\d+)m/);
+                var dsec = video.duration.match(/m(\d+)s/);
+
+                var seconds = 0;
+                if (dhour) {
+                    seconds += parseInt(dhour[1]) * 3600;
+                }
+                if (dmin) {
+                    seconds += parseInt(dmin[1]) * 60;
+                }
+                if (dsec) {
+                    seconds += parseInt(dsec[1]);
+                }
+
+                if (seconds > 0) {
+                    var ended_epoch = created_epoch + seconds;
+                    console.log("ended_epoch:", ended_epoch);
+
+                    if (picked_epoch > created_epoch && picked_epoch < ended_epoch) {
+                        console.log("found vod");
+                        var offset = picked_epoch - created_epoch;
+                        var hours = parseInt(offset / 3600);
+                        var minutes = parseInt((offset - (hours * 3600)) / 60);
+                        var seconds = parseInt(offset - ((hours * 3600) + (minutes * 60)));
+                        var vodLink = "https://www.twitch.tv/videos/" + video.id + "?t=" + hours + "h" + minutes + "m" + seconds + "s";
+                        var voda = "<a id='vlink' href='" + vodLink + "' class='btn btn-primary' target='_blank'>" + vodLink + "</a><button onclick='copyToClipboard()'>Copy</button>";
+
+                        $('#vodlink').html(voda);
+                        $('#vodembed').empty();
+
+                        var options = {
+                            width: "100%",
+                            height: "100%",
+                            video: video.id,
+                            time: offset,
+                            autoplay: true
+                        };
+                        var player = new Twitch.Player("vodembed", options);
+                        player.setVolume(0.5);
+                        return;
+                    }
+                }
+                else {
+                    console.log("invalid duration data:", video.duration);
+                }
+
+            }
+            var voda = "<a href='#' class='btn btn-primary' target='_blank'>No Videos Found</a > ";
+            $('#vodlink').html(voda);
+        }
+
+        function copyToClipboard() {
+            var copyText = document.getElementById("vlink").href;
+            navigator.clipboard.writeText(copyText);
+            console.log("Copied link:", copyText);
+        }
+
+        (async function () {
+            /**
+            * Obtains parameters from the hash of the URL
+            * @return Object
+            */
+            function getHashParams() {
+                var hashParams = {};
+                var e, r = /([^&;=]+)=?([^&;]*)/g,
+                    q = window.location.hash.substring(1);
+                while (e = r.exec(q)) {
+                    hashParams[e[1]] = decodeURIComponent(e[2]);
+                }
+                return hashParams;
+            }
+
+            var params = getHashParams();
+            global_access_token = params.access_token,
+                error = params.error;
+
+            if (error) {
+                alert('There was an error during the authentication');
+            } else {
+                if (global_access_token) {
+                    $('#login').hide();
+                    $('#loggedin').show();
+                } else {
+                    var redirectURL = "https://securitylive.com/playvod.html";
+
+                    if (location.hostname.includes("localhost")) {
+                        redirectURL = "http://localhost/VeryNiceTTS/playvod.html";
+                    }
+
+                    var twitchURL = "<a href =\"https://id.twitch.tv/oauth2/authorize?client_id=iluz511aidmg5esdxunretfkkw8nos&redirect_uri=" + redirectURL + "&response_type=token\" class=\"btn btn-primary\"> Authorize On Twitch</a>";
+                    $('#login').html(twitchURL);
+                    // render initial screen
+                    $('#login').show();
+                    $('#loggedin').hide();
+                }
+            }
+        })();
+    </script>
+</body>
+
+</html>
