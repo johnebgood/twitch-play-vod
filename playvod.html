@@ -30,7 +30,7 @@
 <body class="bootstrap-dark">
     <center>
         <div>
-            <h1>Security Live VOD Seeker</h1>
+            <h3>Security Live VOD Seeker</h3>
             Play a Twitch VOD at a specific date/time. Time selection is based on local time and converted to UTC. <br>
             (Initial version, tested on Chrome and Edge. On Firefox time picker does not work and dates need to be
             entered manually)
@@ -85,7 +85,7 @@
             });
 
             await $.ajax({
-                url: 'https://api.twitch.tv/helix/videos?user_id=' + twitch_id,
+                url: 'https://api.twitch.tv/helix/videos?login=' + channel,
                 type: 'GET',
                 headers: {
                     'client-id': 'iluz511aidmg5esdxunretfkkw8nos',
