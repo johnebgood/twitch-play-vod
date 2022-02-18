@@ -85,7 +85,7 @@
             });
 
             await $.ajax({
-                url: 'https://api.twitch.tv/helix/videos?login=' + channel,
+                url: 'https://api.twitch.tv/helix/videos?user_id=' + twitch_id,
                 type: 'GET',
                 headers: {
                     'client-id': 'iluz511aidmg5esdxunretfkkw8nos',
